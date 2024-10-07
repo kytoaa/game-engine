@@ -56,16 +56,20 @@ impl ApplicationHandler for App {
     ) {
         match event {
             DeviceEvent::MouseMotion { delta } => {
-                self.event_system.queue_event(core::events::Event::queued(
-                    core::events::EventType::MouseMotion((delta.0 as f32, delta.1 as f32)),
-                ))
+                self.event_system
+                    .queue_event(core::events::EventInfo::queued(
+                        core::events::Event::MouseMotion((delta.0 as f32, delta.1 as f32)),
+                    ))
             }
-            DeviceEvent::MouseWheel { delta } => self.event_system.queue_event(
-                core::events::Event::queued(core::events::EventType::MouseScroll(match delta {
-                    winit::event::MouseScrollDelta::LineDelta(_, y) => y,
-                    _ => return,
-                })),
-            ),
+            DeviceEvent::MouseWheel { delta } => {
+                self.event_system
+                    .queue_event(core::events::EventInfo::queued(
+                        core::events::Event::MouseScroll(match delta {
+                            winit::event::MouseScrollDelta::LineDelta(_, y) => y,
+                            _ => return,
+                        }),
+                    ))
+            }
             _ => (),
         }
     }
@@ -81,78 +85,82 @@ impl ApplicationHandler for App {
                 event,
                 is_synthetic: _,
             } => {
-                self.event_system.queue_event(core::events::Event::queued(
-                    core::events::EventType::KeyboardEvent(
-                        match event.physical_key {
-                            winit::keyboard::PhysicalKey::Code(c) => c,
-                            winit::keyboard::PhysicalKey::Unidentified(_) => return,
-                        },
-                        match event.state {
-                            winit::event::ElementState::Pressed if event.repeat => {
-                                core::events::keyboard::KeyState::Repeat
-                            }
-                            winit::event::ElementState::Pressed => {
-                                core::events::keyboard::KeyState::Down
-                            }
-                            winit::event::ElementState::Released => {
-                                core::events::keyboard::KeyState::Up
-                            }
-                        },
-                    ),
-                ));
+                self.event_system
+                    .queue_event(core::events::EventInfo::queued(
+                        core::events::Event::KeyboardEvent(
+                            match event.physical_key {
+                                winit::keyboard::PhysicalKey::Code(c) => c,
+                                winit::keyboard::PhysicalKey::Unidentified(_) => return,
+                            },
+                            match event.state {
+                                winit::event::ElementState::Pressed if event.repeat => {
+                                    core::events::keyboard::KeyState::Repeat
+                                }
+                                winit::event::ElementState::Pressed => {
+                                    core::events::keyboard::KeyState::Down
+                                }
+                                winit::event::ElementState::Released => {
+                                    core::events::keyboard::KeyState::Up
+                                }
+                            },
+                        ),
+                    ));
             }
             WindowEvent::MouseInput {
                 device_id: _,
                 state,
                 button,
             } => {
-                self.event_system.queue_event(core::events::Event::queued(
-                    core::events::EventType::MouseEvent(
-                        match button {
-                            winit::event::MouseButton::Left => {
-                                core::events::mouse::MouseButton::Left
-                            }
-                            winit::event::MouseButton::Right => {
-                                core::events::mouse::MouseButton::Right
-                            }
-                            winit::event::MouseButton::Middle => {
-                                core::events::mouse::MouseButton::Middle
-                            }
-                            winit::event::MouseButton::Forward => {
-                                core::events::mouse::MouseButton::Forward
-                            }
-                            winit::event::MouseButton::Back => {
-                                core::events::mouse::MouseButton::Back
-                            }
-                            _ => return,
-                        },
-                        match state {
-                            winit::event::ElementState::Pressed => {
-                                core::events::keyboard::KeyState::Down
-                            }
-                            winit::event::ElementState::Released => {
-                                core::events::keyboard::KeyState::Up
-                            }
-                        },
-                    ),
-                ));
+                self.event_system
+                    .queue_event(core::events::EventInfo::queued(
+                        core::events::Event::MouseEvent(
+                            match button {
+                                winit::event::MouseButton::Left => {
+                                    core::events::mouse::MouseButton::Left
+                                }
+                                winit::event::MouseButton::Right => {
+                                    core::events::mouse::MouseButton::Right
+                                }
+                                winit::event::MouseButton::Middle => {
+                                    core::events::mouse::MouseButton::Middle
+                                }
+                                winit::event::MouseButton::Forward => {
+                                    core::events::mouse::MouseButton::Forward
+                                }
+                                winit::event::MouseButton::Back => {
+                                    core::events::mouse::MouseButton::Back
+                                }
+                                _ => return,
+                            },
+                            match state {
+                                winit::event::ElementState::Pressed => {
+                                    core::events::keyboard::KeyState::Down
+                                }
+                                winit::event::ElementState::Released => {
+                                    core::events::keyboard::KeyState::Up
+                                }
+                            },
+                        ),
+                    ));
             }
             WindowEvent::Resized(size) => {
-                self.event_system.queue_event(core::events::Event::blocking(
-                    core::events::EventType::WindowResize((size.width, size.height)),
-                ))
+                self.event_system
+                    .queue_event(core::events::EventInfo::blocking(
+                        core::events::Event::WindowResize((size.width, size.height)),
+                    ))
             }
             WindowEvent::Focused(focused) => {
                 self.event_system
-                    .queue_event(core::events::Event::blocking(match focused {
-                        true => core::events::EventType::WindowFocus,
-                        false => core::events::EventType::WindowLoseFocus,
+                    .queue_event(core::events::EventInfo::blocking(match focused {
+                        true => core::events::Event::WindowFocus,
+                        false => core::events::Event::WindowLoseFocus,
                     }))
             }
             WindowEvent::CloseRequested => {
-                self.event_system.queue_event(core::events::Event::blocking(
-                    core::events::EventType::WindowClose,
-                ));
+                self.event_system
+                    .queue_event(core::events::EventInfo::blocking(
+                        core::events::Event::WindowClose,
+                    ));
                 self.close();
                 event_loop.exit();
             }

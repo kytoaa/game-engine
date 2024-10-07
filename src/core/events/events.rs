@@ -3,26 +3,27 @@ use winit::keyboard::KeyCode;
 use super::keyboard::KeyState;
 use super::mouse::MouseButton;
 
-pub struct Event {
-    pub event: EventType,
+pub struct EventInfo {
+    pub event: Event,
     priority: EventPriority,
 }
-impl Event {
-    pub fn queued(event: EventType) -> Event {
-        Event {
+impl EventInfo {
+    pub fn queued(event: Event) -> EventInfo {
+        EventInfo {
             event,
             priority: EventPriority::Queued,
         }
     }
-    pub fn blocking(event: EventType) -> Event {
-        Event {
+    pub fn blocking(event: Event) -> EventInfo {
+        EventInfo {
             event,
             priority: EventPriority::Blocking,
         }
     }
 }
 
-pub enum EventType {
+#[derive(Debug)]
+pub enum Event {
     KeyboardEvent(KeyCode, KeyState),
     MouseEvent(MouseButton, KeyState),
     MouseMotion((f32, f32)),
@@ -34,6 +35,12 @@ pub enum EventType {
     WindowResize((u32, u32)),
     WindowClose,
 }
+impl PartialEq for Event {
+    fn eq(&self, other: &Self) -> bool {
+        std::mem::discriminant(self) == std::mem::discriminant(other)
+    }
+}
+impl Eq for Event {}
 
 enum EventPriority {
     /// puts the event in a queue to be processed next frame
@@ -43,7 +50,7 @@ enum EventPriority {
 }
 
 pub struct EventSystem {
-    queue: Vec<EventType>,
+    queue: Vec<Event>,
     listeners: Vec<Box<dyn EventListener>>,
 }
 
@@ -57,7 +64,7 @@ impl EventSystem {
     }
 }
 impl EventSystem {
-    pub fn queue_event(&mut self, event: Event) {
+    pub fn queue_event(&mut self, event: EventInfo) {
         match event.priority {
             EventPriority::Queued => self.queue.insert(0, event.event),
             EventPriority::Blocking => self.execute(event.event),
@@ -68,12 +75,10 @@ impl EventSystem {
     }
 
     /// execute a specific event
-    pub fn execute(&self, event: EventType) {
+    pub fn execute(&self, event: Event) {
         self.listeners
             .iter()
-            .filter(|listener| {
-                std::mem::discriminant(&event) == std::mem::discriminant(&listener.event())
-            })
+            .filter(|listener| event == listener.event())
             .for_each(|listener| listener.call(&event));
     }
 
@@ -85,6 +90,21 @@ impl EventSystem {
 }
 
 pub trait EventListener {
-    fn event(&self) -> EventType;
-    fn call(&self, event: &EventType);
+    fn event(&self) -> Event;
+    fn call(&self, event: &Event);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn event_type_eq() {
+        let a = Event::MouseEvent(super::MouseButton::Left, KeyState::Up);
+        let b = Event::WindowFocus;
+        let c = Event::MouseEvent(super::MouseButton::Right, KeyState::Down);
+
+        assert_ne!(a, b);
+        assert_eq!(a, c);
+    }
 }
