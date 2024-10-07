@@ -8,6 +8,7 @@ use winit::window::{self, WindowAttributes};
 pub mod core;
 pub mod datatypes;
 pub mod renderer;
+pub mod runtime;
 
 use core::events::EventSystem;
 use core::initialization::{AppBuilder, WindowData};

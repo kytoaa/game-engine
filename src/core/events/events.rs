@@ -23,6 +23,10 @@ impl EventInfo {
         }
     }
 }
+pub enum EventEvaluateState {
+    Handled,
+    Unhandled,
+}
 
 #[derive(Debug)]
 pub enum Event {
@@ -86,7 +90,7 @@ enum EventPriority {
 }
 
 pub struct EventSystem {
-    queue: Vec<Event>,
+    queue: Vec<EventInfo>,
     listeners: HashMap<EventType, Vec<Box<dyn EventListener>>>,
 }
 
@@ -102,26 +106,35 @@ impl EventSystem {
 impl EventSystem {
     pub fn queue_event(&mut self, event: EventInfo) {
         match event.priority {
-            EventPriority::Queued => self.queue.insert(0, event.event),
-            EventPriority::Blocking => self.execute(event.event),
+            EventPriority::Queued => self.queue.insert(0, event),
+            EventPriority::Blocking => self.execute(event),
         }
     }
-    pub fn add_listener(&mut self, listener: Box<dyn EventListener>) {
+    pub fn add_listener(&mut self, listener: Box<dyn EventListener>) -> &mut Self {
         let event = listener.event();
         match self.listeners.get_mut(&event) {
             Some(v) => v.push(listener),
             None => _ = self.listeners.insert(event, vec![listener]),
         }
+        self
     }
 
     /// execute a specific event
-    pub fn execute(&self, event: Event) {
-        match self.listeners.get(&event.as_type()) {
+    pub fn execute(&self, event: EventInfo) {
+        for listener in match self.listeners.get(&event.event.as_type()) {
             Some(i) => i,
             None => return,
         }
         .iter()
-        .for_each(|listener: &Box<dyn EventListener>| listener.invoked(&event));
+        {
+            match listener.invoked(&event.event) {
+                EventEvaluateState::Handled => {
+                    crate::core::logging::engine::trace!("event handled");
+                    break;
+                }
+                EventEvaluateState::Unhandled => (),
+            }
+        }
     }
 
     pub fn update(&mut self) {
@@ -133,7 +146,7 @@ impl EventSystem {
 
 pub trait EventListener {
     fn event(&self) -> EventType;
-    fn invoked(&self, event: &Event);
+    fn invoked(&self, event: &Event) -> EventEvaluateState;
 }
 
 #[cfg(test)]

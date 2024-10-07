@@ -1,11 +1,3 @@
-static mut APP_NAME: &str = "APP";
-
-pub fn set_name(name: &'static str) {
-    unsafe {
-        APP_NAME = name;
-    }
-}
-
 #[allow(unused_macros)]
 #[macro_export]
 macro_rules! trace {
