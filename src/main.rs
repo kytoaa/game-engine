@@ -3,7 +3,7 @@ use vulkan_project;
 fn main() {
     let mut app = vulkan_project::App::begin_build()
         .add_init_func(|| {
-            println!("initializing app");
+            vulkan_project::info!("initializing app");
             Ok(())
         })
         .build()
@@ -14,7 +14,7 @@ fn main() {
     let result = app.run();
 
     if let Err(e) = result {
-        println!("ERROR: {}", e);
+        vulkan_project::error!("ERROR: {}", e);
     }
 }
 
@@ -29,7 +29,7 @@ impl vulkan_project::core::events::EventListener for MouseEventListener {
             vulkan_project::core::events::Event::MouseEvent(
                 vulkan_project::core::events::mouse::MouseButton::Left,
                 vulkan_project::core::events::keyboard::KeyState::Down,
-            ) => println!("mouse event!"),
+            ) => vulkan_project::debug!("mouse event!"),
             _ => (),
         }
     }

@@ -19,8 +19,14 @@ pub struct App {
     frame_num: u64,
 }
 
+fn init() {
+    env_logger::init();
+}
+
 impl App {
     fn new(window_data: WindowData) -> App {
+        // NOTE: not a big fan of putting this here, maybe move when theres more in `init()`
+        init();
         App {
             window: None,
             window_data,
@@ -168,7 +174,6 @@ impl ApplicationHandler for App {
         }
     }
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        //println!("frame: {}", self.frame_num);
         self.frame_num += 1;
         self.event_system.update();
     }

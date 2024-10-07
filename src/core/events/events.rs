@@ -107,14 +107,11 @@ impl EventSystem {
         }
     }
     pub fn add_listener(&mut self, listener: Box<dyn EventListener>) {
-        match self.listeners.get_mut(&listener.event()) {
+        let event = listener.event();
+        match self.listeners.get_mut(&event) {
             Some(v) => v.push(listener),
-            None => {
-                self.listeners.insert(listener.event(), vec![listener]);
-            }
+            None => _ = self.listeners.insert(event, vec![listener]),
         }
-
-        ()
     }
 
     /// execute a specific event
