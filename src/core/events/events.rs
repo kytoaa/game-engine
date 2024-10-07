@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use winit::keyboard::KeyCode;
 
 use super::keyboard::KeyState;
@@ -41,6 +43,40 @@ impl PartialEq for Event {
     }
 }
 impl Eq for Event {}
+impl std::hash::Hash for Event {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
+    }
+}
+impl Event {
+    fn as_type(&self) -> EventType {
+        match self {
+            Self::KeyboardEvent(_, _) => EventType::KeyboardEvent,
+            Self::MouseEvent(_, _) => EventType::MouseEvent,
+            Self::MouseMotion(_) => EventType::MouseMotion,
+            Self::MouseScroll(_) => EventType::MouseScroll,
+            Self::AppUpdate => EventType::AppUpdate,
+            Self::AppRender => EventType::AppRender,
+            Self::WindowFocus => EventType::WindowFocus,
+            Self::WindowLoseFocus => EventType::WindowLoseFocus,
+            Self::WindowResize(_) => EventType::WindowResize,
+            Self::WindowClose => EventType::WindowClose,
+        }
+    }
+}
+#[derive(PartialEq, Eq, Hash)]
+pub enum EventType {
+    KeyboardEvent,
+    MouseEvent,
+    MouseMotion,
+    MouseScroll,
+    AppUpdate,
+    AppRender,
+    WindowFocus,
+    WindowLoseFocus,
+    WindowResize,
+    WindowClose,
+}
 
 enum EventPriority {
     /// puts the event in a queue to be processed next frame
@@ -51,7 +87,7 @@ enum EventPriority {
 
 pub struct EventSystem {
     queue: Vec<Event>,
-    listeners: Vec<Box<dyn EventListener>>,
+    listeners: HashMap<EventType, Vec<Box<dyn EventListener>>>,
 }
 
 /// Handles the engine's events
@@ -59,7 +95,7 @@ impl EventSystem {
     pub fn new() -> EventSystem {
         EventSystem {
             queue: vec![],
-            listeners: vec![],
+            listeners: HashMap::new(),
         }
     }
 }
@@ -71,15 +107,24 @@ impl EventSystem {
         }
     }
     pub fn add_listener(&mut self, listener: Box<dyn EventListener>) {
-        self.listeners.push(listener);
+        match self.listeners.get_mut(&listener.event()) {
+            Some(v) => v.push(listener),
+            None => {
+                self.listeners.insert(listener.event(), vec![listener]);
+            }
+        }
+
+        ()
     }
 
     /// execute a specific event
     pub fn execute(&self, event: Event) {
-        self.listeners
-            .iter()
-            .filter(|listener| event == listener.event())
-            .for_each(|listener| listener.call(&event));
+        match self.listeners.get(&event.as_type()) {
+            Some(i) => i,
+            None => return,
+        }
+        .iter()
+        .for_each(|listener: &Box<dyn EventListener>| listener.invoked(&event));
     }
 
     pub fn update(&mut self) {
@@ -90,8 +135,8 @@ impl EventSystem {
 }
 
 pub trait EventListener {
-    fn event(&self) -> Event;
-    fn call(&self, event: &Event);
+    fn event(&self) -> EventType;
+    fn invoked(&self, event: &Event);
 }
 
 #[cfg(test)]
