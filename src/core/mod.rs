@@ -1,3 +1,3 @@
 pub mod events;
 pub mod initialization;
-pub mod logging;
+pub(crate) mod logging;

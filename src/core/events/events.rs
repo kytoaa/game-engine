@@ -68,7 +68,7 @@ impl Event {
         }
     }
 }
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub enum EventType {
     KeyboardEvent,
     MouseEvent,
@@ -147,6 +147,32 @@ impl EventSystem {
 pub trait EventListener {
     fn event(&self) -> EventType;
     fn invoked(&self, event: &Event) -> EventEvaluateState;
+}
+
+pub fn listener_from_func<F>(f: F, event: EventType) -> Box<dyn EventListener>
+where
+    F: Fn(&Event) -> EventEvaluateState + 'static,
+{
+    Box::new(FuncEventListener { f, event })
+}
+
+struct FuncEventListener<F>
+where
+    F: Fn(&Event) -> EventEvaluateState + 'static,
+{
+    f: F,
+    event: EventType,
+}
+impl<F> EventListener for FuncEventListener<F>
+where
+    F: Fn(&Event) -> EventEvaluateState + 'static,
+{
+    fn event(&self) -> EventType {
+        self.event.clone()
+    }
+    fn invoked(&self, event: &Event) -> EventEvaluateState {
+        (self.f)(event)
+    }
 }
 
 #[cfg(test)]

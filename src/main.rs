@@ -11,12 +11,23 @@ fn main() {
 
     app.event_system
         .add_listener(Box::new(MouseEventListener { id: 1 }))
-        .add_listener(Box::new(MouseEventListener { id: 2 }));
+        .add_listener(Box::new(MouseEventListener { id: 2 }))
+        .add_listener(vulkan_project::core::events::listener_from_func(
+            test_event,
+            vulkan_project::core::events::EventType::KeyboardEvent,
+        ));
     let result = app.run();
 
     if let Err(e) = result {
         vulkan_project::error!("ERROR: {}", e);
     }
+}
+
+fn test_event(
+    _event: &vulkan_project::core::events::Event,
+) -> vulkan_project::core::events::EventEvaluateState {
+    vulkan_project::debug!("test event triggered!");
+    vulkan_project::core::events::EventEvaluateState::Handled
 }
 
 struct MouseEventListener {
@@ -43,3 +54,6 @@ impl vulkan_project::core::events::EventListener for MouseEventListener {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {}
