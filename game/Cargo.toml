@@ -1,0 +1,8 @@
+[package]
+name = "vulkan_project"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+engine_lib = { path = "../engine_lib" }
+

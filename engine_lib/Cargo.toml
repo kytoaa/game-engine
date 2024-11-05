@@ -1,0 +1,12 @@
+[package]
+name = "engine_lib"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+env_logger = "0.11.5"
+image = "0.25.2"
+log = "0.4.22"
+winit = "0.30.5"
+flecs_ecs = "0.1.1"
+ash = { version = "0.38.0", features = ["linked"] }
