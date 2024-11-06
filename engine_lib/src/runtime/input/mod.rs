@@ -75,14 +75,10 @@ impl Layer for Arc<InputSystem> {
     fn update(&mut self) {}
     fn close(&mut self) {}
 }
-impl EventListener for Arc<InputSystem> {
-    fn event(&self) -> EventType {
-        EventType::KeyboardEvent
-    }
-    fn invoked(&self, event: &Event) -> EventEvaluateState {
-        if let Event::KeyboardEvent(keycode, keystate) = event {
-            return EventEvaluateState::Handled;
-        }
-        panic!("passed event not matching recieved event type")
+impl EventListener<event::KeyboardEvent> for Arc<InputSystem> {
+    fn invoke_event(&self, event: &event::KeyboardEvent) -> EventEvaluateState {
+        let event::KeyboardEvent(keycode, keystate) = event;
+
+        EventEvaluateState::Unhandled
     }
 }

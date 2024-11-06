@@ -65,21 +65,19 @@ impl ApplicationHandler for App {
         event: DeviceEvent,
     ) {
         match event {
-            DeviceEvent::MouseMotion { delta } => {
-                self.event_system
-                    .queue_event(core::events::EventInfo::queued(
-                        core::events::Event::MouseMotion((delta.0 as f32, delta.1 as f32)),
-                    ))
-            }
-            DeviceEvent::MouseWheel { delta } => {
-                self.event_system
-                    .queue_event(core::events::EventInfo::queued(
-                        core::events::Event::MouseScroll(match delta {
-                            winit::event::MouseScrollDelta::LineDelta(_, y) => y,
-                            _ => return,
-                        }),
-                    ))
-            }
+            DeviceEvent::MouseMotion { delta } => self
+                .event_system
+                .queue_event::<core::events::event::MouseMotion>(core::events::EventInfo::queued(
+                    core::events::event::MouseMotion((delta.0 as f32, delta.1 as f32)),
+                )),
+            DeviceEvent::MouseWheel { delta } => self
+                .event_system
+                .queue_event::<core::events::event::MouseScroll>(core::events::EventInfo::queued(
+                    core::events::event::MouseScroll(match delta {
+                        winit::event::MouseScrollDelta::LineDelta(_, y) => y,
+                        _ => return,
+                    }),
+                )),
 
             _ => (),
         }
@@ -97,8 +95,8 @@ impl ApplicationHandler for App {
                 is_synthetic: _,
             } => {
                 self.event_system
-                    .queue_event(core::events::EventInfo::queued(
-                        core::events::Event::KeyboardEvent(
+                    .queue_event::<core::events::event::KeyboardEvent>(
+                        core::events::EventInfo::queued(core::events::event::KeyboardEvent(
                             match event.physical_key {
                                 winit::keyboard::PhysicalKey::Code(c) => c,
                                 winit::keyboard::PhysicalKey::Unidentified(_) => return,
@@ -114,8 +112,8 @@ impl ApplicationHandler for App {
                                     core::events::keyboard::KeyState::Up
                                 }
                             },
-                        ),
-                    ));
+                        )),
+                    );
             }
             WindowEvent::MouseInput {
                 device_id: _,
@@ -123,8 +121,8 @@ impl ApplicationHandler for App {
                 button,
             } => {
                 self.event_system
-                    .queue_event(core::events::EventInfo::queued(
-                        core::events::Event::MouseEvent(
+                    .queue_event::<core::events::event::MouseEvent>(
+                        core::events::EventInfo::queued(core::events::event::MouseEvent(
                             match button {
                                 winit::event::MouseButton::Left => {
                                     core::events::mouse::MouseButton::Left
@@ -151,27 +149,34 @@ impl ApplicationHandler for App {
                                     core::events::keyboard::KeyState::Up
                                 }
                             },
-                        ),
-                    ));
+                        )),
+                    );
             }
-            WindowEvent::Resized(size) => {
-                self.event_system
-                    .queue_event(core::events::EventInfo::blocking(
-                        core::events::Event::WindowResize((size.width, size.height)),
-                    ))
-            }
-            WindowEvent::Focused(focused) => {
-                self.event_system
-                    .queue_event(core::events::EventInfo::blocking(match focused {
-                        true => core::events::Event::WindowFocus,
-                        false => core::events::Event::WindowLoseFocus,
-                    }))
-            }
+            WindowEvent::Resized(size) => self
+                .event_system
+                .queue_event::<core::events::event::WindowResize>(
+                    core::events::EventInfo::blocking(core::events::event::WindowResize((
+                        size.width,
+                        size.height,
+                    ))),
+                ),
+            WindowEvent::Focused(focused) => match focused {
+                true => self
+                    .event_system
+                    .queue_event::<core::events::event::WindowFocus>(
+                        core::events::EventInfo::blocking(core::events::event::WindowFocus),
+                    ),
+                false => self
+                    .event_system
+                    .queue_event::<core::events::event::WindowLoseFocus>(
+                        core::events::EventInfo::blocking(core::events::event::WindowLoseFocus),
+                    ),
+            },
             WindowEvent::CloseRequested => {
                 self.event_system
-                    .queue_event(core::events::EventInfo::blocking(
-                        core::events::Event::WindowClose,
-                    ));
+                    .queue_event::<core::events::event::WindowClose>(
+                        core::events::EventInfo::blocking(core::events::event::WindowClose),
+                    );
                 self.close();
                 event_loop.exit();
             }

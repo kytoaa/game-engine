@@ -1,22 +1,24 @@
+use std::any::{Any, TypeId};
 use std::collections::HashMap;
+use std::marker::PhantomData;
 
 use super::keyboard::{KeyState, Keycode};
 use super::mouse::MouseButton;
 
 pub struct EventInfo {
-    pub event: Event,
+    pub event: Box<dyn Any>,
     priority: EventPriority,
 }
 impl EventInfo {
-    pub fn queued(event: Event) -> EventInfo {
+    pub fn queued<T: EventMarker + 'static>(event: T) -> EventInfo {
         EventInfo {
-            event,
+            event: Box::new(event),
             priority: EventPriority::Queued,
         }
     }
-    pub fn blocking(event: Event) -> EventInfo {
+    pub fn blocking<T: EventMarker + 'static>(event: T) -> EventInfo {
         EventInfo {
-            event,
+            event: Box::new(event),
             priority: EventPriority::Blocking,
         }
     }
@@ -26,60 +28,56 @@ pub enum EventEvaluateState {
     Unhandled,
 }
 
-#[derive(Debug)]
-pub enum Event {
-    KeyboardEvent(Keycode, KeyState),
-    MouseEvent(MouseButton, KeyState),
-    MouseMotion((f32, f32)),
-    MouseScroll(f32),
-    AppUpdate,
-    AppRender,
-    WindowFocus,
-    WindowLoseFocus,
-    WindowResize((u32, u32)),
-    WindowClose,
-}
-impl PartialEq for Event {
-    fn eq(&self, other: &Self) -> bool {
-        std::mem::discriminant(self) == std::mem::discriminant(other)
-    }
-}
-impl Eq for Event {}
-impl std::hash::Hash for Event {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        std::mem::discriminant(self).hash(state);
-    }
-}
-impl Event {
-    fn as_type(&self) -> EventType {
-        match self {
-            Self::KeyboardEvent(_, _) => EventType::KeyboardEvent,
-            Self::MouseEvent(_, _) => EventType::MouseEvent,
-            Self::MouseMotion(_) => EventType::MouseMotion,
-            Self::MouseScroll(_) => EventType::MouseScroll,
-            Self::AppUpdate => EventType::AppUpdate,
-            Self::AppRender => EventType::AppRender,
-            Self::WindowFocus => EventType::WindowFocus,
-            Self::WindowLoseFocus => EventType::WindowLoseFocus,
-            Self::WindowResize(_) => EventType::WindowResize,
-            Self::WindowClose => EventType::WindowClose,
-        }
-    }
-}
-#[derive(PartialEq, Eq, Hash, Clone)]
-pub enum EventType {
-    KeyboardEvent,
-    MouseEvent,
-    MouseMotion,
-    MouseScroll,
-    AppUpdate,
-    AppRender,
-    WindowFocus,
-    WindowLoseFocus,
-    WindowResize,
-    WindowClose,
-}
+pub mod event {
+    use super::*;
 
+    pub trait EventMarker: Any {}
+
+    #[derive(Debug)]
+    #[allow(unused_variables)]
+    pub struct KeyboardEvent(pub Keycode, pub KeyState);
+    #[derive(Debug)]
+    #[allow(unused_variables)]
+    pub struct MouseEvent(pub MouseButton, pub KeyState);
+    #[derive(Debug)]
+    #[allow(unused_variables)]
+    pub struct MouseMotion(pub (f32, f32));
+    #[derive(Debug)]
+    #[allow(unused_variables)]
+    pub struct MouseScroll(pub f32);
+    #[derive(Debug)]
+    #[allow(unused_variables)]
+    pub struct AppUpdate;
+    #[derive(Debug)]
+    #[allow(unused_variables)]
+    pub struct AppRender;
+    #[derive(Debug)]
+    #[allow(unused_variables)]
+    pub struct WindowFocus;
+    #[derive(Debug)]
+    #[allow(unused_variables)]
+    pub struct WindowLoseFocus;
+    #[derive(Debug)]
+    #[allow(unused_variables)]
+    pub struct WindowResize(pub (u32, u32));
+    #[derive(Debug)]
+    #[allow(unused_variables)]
+    pub struct WindowClose;
+
+    impl EventMarker for KeyboardEvent {}
+    impl EventMarker for MouseEvent {}
+    impl EventMarker for MouseMotion {}
+    impl EventMarker for MouseScroll {}
+    impl EventMarker for AppUpdate {}
+    impl EventMarker for AppRender {}
+    impl EventMarker for WindowFocus {}
+    impl EventMarker for WindowLoseFocus {}
+    impl EventMarker for WindowResize {}
+    impl EventMarker for WindowClose {}
+}
+use event::*;
+
+#[derive(Clone)]
 enum EventPriority {
     /// puts the event in a queue to be processed next frame
     Queued,
@@ -88,8 +86,10 @@ enum EventPriority {
 }
 
 pub struct EventSystem {
-    queue: Vec<EventInfo>,
-    listeners: HashMap<EventType, Vec<Box<dyn EventListener>>>,
+    queue: Vec<Box<dyn FnOnce(&HashMap<TypeId, Box<dyn Any>>) -> ()>>,
+
+    /// Real type of Any: `Vec<Box<EventListener<EventMarker>>>`
+    listeners: HashMap<TypeId, Box<dyn Any>>,
 }
 
 /// Handles the engine's events
@@ -102,73 +102,97 @@ impl EventSystem {
     }
 }
 impl EventSystem {
-    pub fn queue_event(&mut self, event: EventInfo) {
-        match event.priority {
-            EventPriority::Queued => self.queue.insert(0, event),
-            EventPriority::Blocking => self.execute(event),
+    pub fn queue_event<T: EventMarker>(&mut self, event: EventInfo) {
+        match event.priority.clone() {
+            EventPriority::Queued => self
+                .queue
+                .insert(0, Box::new(move |listeners| execute::<T>(listeners, event))),
+            EventPriority::Blocking => self.execute::<T>(event),
         }
     }
-    pub fn add_listener(&mut self, listener: Box<dyn EventListener>) -> &mut Self {
-        let event = listener.event();
+    pub fn add_listener<T, E>(&mut self, listener: Box<E>) -> &mut Self
+    where
+        T: EventMarker + 'static,
+        E: EventListener<T> + 'static,
+    {
+        let event = TypeId::of::<T>();
         match self.listeners.get_mut(&event) {
-            Some(v) => v.push(listener),
-            None => _ = self.listeners.insert(event, vec![listener]),
+            Some(v) => v
+                .downcast_mut::<Vec<Box<E>>>()
+                .expect("failed to downcast to listener list")
+                .push(listener),
+            None => _ = self.listeners.insert(event, Box::new(vec![listener])),
         }
         self
     }
 
-    /// execute a specific event
-    pub fn execute(&self, event: EventInfo) {
-        for listener in match self.listeners.get(&event.event.as_type()) {
-            Some(i) => i,
-            None => return,
-        }
-        .iter()
-        {
-            match listener.invoked(&event.event) {
-                EventEvaluateState::Handled => {
-                    crate::core::logging::engine::trace!("event handled");
-                    break;
-                }
-                EventEvaluateState::Unhandled => (),
-            }
-        }
+    /// execute a specific event immediately
+    pub fn execute<E: EventMarker + 'static>(&self, event: EventInfo) {
+        execute::<E>(&self.listeners, event);
     }
-
     pub fn update(&mut self) {
-        while let Some(event) = self.queue.pop() {
-            self.execute(event);
+        while let Some(event_handler) = self.queue.pop() {
+            (event_handler)(&self.listeners)
         }
     }
 }
 
-pub trait EventListener {
-    fn event(&self) -> EventType;
-    fn invoked(&self, event: &Event) -> EventEvaluateState;
+fn execute<'a, E: EventMarker + 'static>(
+    listeners: &'a HashMap<TypeId, Box<dyn Any>>,
+    event: EventInfo,
+) {
+    for listener in match listeners.get(&TypeId::of::<E>()) {
+        Some(i) => i
+            .downcast_ref::<Vec<Box<dyn EventListener<E>>>>()
+            .expect("failed to downcast to event list"),
+        None => return,
+    }
+    .iter()
+    {
+        match listener.invoke_event(
+            &event
+                .event
+                .downcast_ref::<E>()
+                .expect("failed to downcast to concrete event"),
+        ) {
+            EventEvaluateState::Handled => {
+                crate::core::logging::engine::trace!("event handled");
+                break;
+            }
+            EventEvaluateState::Unhandled => (),
+        }
+    }
 }
 
-pub fn listener_from_func<F>(f: F, event: EventType) -> Box<dyn EventListener>
+pub trait EventListener<T: EventMarker + 'static> {
+    fn invoke_event(&self, event: &T) -> EventEvaluateState;
+}
+
+pub fn listener_from_func<F, T>(f: F) -> Box<dyn EventListener<T>>
 where
-    F: Fn(&Event) -> EventEvaluateState + 'static,
+    F: Fn(&T) -> EventEvaluateState + 'static,
+    T: EventMarker + 'static,
 {
-    Box::new(FuncEventListener { f, event })
+    Box::new(FuncEventListener {
+        f,
+        phantom: PhantomData,
+    })
 }
 
-struct FuncEventListener<F>
+struct FuncEventListener<F, T: EventMarker>
 where
-    F: Fn(&Event) -> EventEvaluateState + 'static,
+    F: Fn(&T) -> EventEvaluateState + 'static,
+    T: EventMarker,
 {
     f: F,
-    event: EventType,
+    phantom: PhantomData<T>,
 }
-impl<F> EventListener for FuncEventListener<F>
+impl<F, T> EventListener<T> for FuncEventListener<F, T>
 where
-    F: Fn(&Event) -> EventEvaluateState + 'static,
+    F: Fn(&T) -> EventEvaluateState + 'static,
+    T: EventMarker + 'static,
 {
-    fn event(&self) -> EventType {
-        self.event.clone()
-    }
-    fn invoked(&self, event: &Event) -> EventEvaluateState {
+    fn invoke_event(&self, event: &T) -> EventEvaluateState {
         (self.f)(event)
     }
 }
@@ -177,13 +201,41 @@ where
 mod tests {
     use super::*;
 
-    #[test]
-    fn event_type_eq() {
-        let a = Event::MouseEvent(super::MouseButton::Left, KeyState::Up);
-        let b = Event::WindowFocus;
-        let c = Event::MouseEvent(super::MouseButton::Right, KeyState::Down);
+    struct Listener;
+    impl EventListener<event::AppUpdate> for Listener {
+        fn invoke_event(&self, _event: &event::AppUpdate) -> EventEvaluateState {
+            panic!("event invoked");
+        }
+    }
 
-        assert_ne!(a, b);
-        assert_eq!(a, c);
+    #[test]
+    fn event_marker_type_id_test() {
+        assert_ne!(
+            TypeId::of::<event::AppUpdate>(),
+            TypeId::of::<dyn event::EventMarker>()
+        );
+    }
+    #[test]
+    #[should_panic]
+    fn event_system_test() {
+        let mut event_system = EventSystem::new();
+
+        let listener = Listener;
+
+        event_system.add_listener(Box::new(listener));
+
+        event_system.queue_event::<event::AppUpdate>(EventInfo::queued(event::AppUpdate));
+        event_system.update();
+    }
+    #[test]
+    #[should_panic]
+    fn event_immediate_test() {
+        let mut event_system = EventSystem::new();
+
+        let listener = Listener;
+
+        event_system.add_listener(Box::new(listener));
+
+        event_system.queue_event::<event::AppUpdate>(EventInfo::blocking(event::AppUpdate));
     }
 }

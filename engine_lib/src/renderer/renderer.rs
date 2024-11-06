@@ -1,4 +1,4 @@
-use ash::{vk, Entry};
+//use ash::{vk, Entry};
 
 //#[derive(BufferContents, Vertex)]
 #[repr(C)]
@@ -25,7 +25,7 @@ pub trait VertexBuffer: Iterator<Item = RenderVert> {}
 pub struct Renderer;
 
 impl Renderer {
-    pub fn init() -> Renderer {
+    /*pub fn init() -> Renderer {
         let entry = Entry::linked();
         let app_info = vk::ApplicationInfo {
             api_version: vk::make_api_version(0, 1, 0, 0),
@@ -51,7 +51,7 @@ impl Renderer {
         .expect("failed to create logical device");
 
         todo!()
-    }
+    }*/
 }
 
 impl Renderer {
