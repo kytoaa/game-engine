@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use keyboard::KeyState;
 
 use crate::core::{events::*, layers::Layer};
 
@@ -23,6 +26,7 @@ pub enum InputEvent {
     None,
 }
 
+#[derive(Copy, Clone, Debug)]
 pub enum CallbackKeyState {
     Down,
     Up,
@@ -76,8 +80,27 @@ impl Layer for Arc<InputSystem> {
     fn close(&mut self) {}
 }
 impl EventListener<event::KeyboardEvent> for Arc<InputSystem> {
-    fn invoke_event(&self, event: &event::KeyboardEvent) -> EventEvaluateState {
+    fn invoke_event(&mut self, event: &event::KeyboardEvent) -> EventEvaluateState {
         let event::KeyboardEvent(keycode, keystate) = event;
+
+        /*let bindings = self.actions.iter_mut().filter(|a| {
+            a.bindings
+                .iter_mut()
+                .filter(|b| b.key == *keycode && b.action == *keystate)
+                .count()
+                > 0
+        });
+
+        for binding in bindings {
+            if let InputEvent::Callback(callback) = &binding.event {
+                (callback)(
+                    self.listening_for
+                        .get(keycode)
+                        .expect("unregistered key")
+                        .clone(),
+                );
+            }
+        }*/
 
         EventEvaluateState::Unhandled
     }

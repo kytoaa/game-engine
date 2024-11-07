@@ -86,9 +86,10 @@ enum EventPriority {
 }
 
 pub struct EventSystem {
-    queue: Vec<Box<dyn FnOnce(&HashMap<TypeId, Box<dyn Any>>) -> ()>>,
+    queue: Vec<Box<dyn FnOnce(&mut HashMap<TypeId, Box<dyn Any>>) -> ()>>,
 
     /// Real type of Any: `Vec<Box<EventListener<EventMarker>>>`
+    /// 'listeners: HashMap<TypeId, Box<Vec<Box<ConcreteEventListener<EventMarker>>>>>`
     listeners: HashMap<TypeId, Box<dyn Any>>,
 }
 
@@ -115,46 +116,53 @@ impl EventSystem {
         T: EventMarker + 'static,
         E: EventListener<T> + 'static,
     {
-        let event = TypeId::of::<T>();
-        match self.listeners.get_mut(&event) {
+        let event_type_id = TypeId::of::<T>();
+        match self.listeners.get_mut(&event_type_id) {
             Some(v) => v
                 .downcast_mut::<Vec<Box<E>>>()
                 .expect("failed to downcast to listener list")
                 .push(listener),
-            None => _ = self.listeners.insert(event, Box::new(vec![listener])),
+            None => {
+                _ = self
+                    .listeners
+                    .insert(event_type_id, Box::new(vec![listener]))
+            }
         }
         self
     }
 
     /// execute a specific event immediately
-    pub fn execute<E: EventMarker + 'static>(&self, event: EventInfo) {
-        execute::<E>(&self.listeners, event);
+    pub fn execute<E: EventMarker + 'static>(&mut self, event: EventInfo) {
+        execute::<E>(&mut self.listeners, event);
     }
     pub fn update(&mut self) {
         while let Some(event_handler) = self.queue.pop() {
-            (event_handler)(&self.listeners)
+            (event_handler)(&mut self.listeners)
         }
     }
 }
 
 fn execute<'a, E: EventMarker + 'static>(
-    listeners: &'a HashMap<TypeId, Box<dyn Any>>,
+    listeners: &'a mut HashMap<TypeId, Box<dyn Any>>,
     event: EventInfo,
 ) {
-    for listener in match listeners.get(&TypeId::of::<E>()) {
+    for listener in match listeners.get_mut(&TypeId::of::<E>()) {
         Some(i) => i
-            .downcast_ref::<Vec<Box<dyn EventListener<E>>>>()
+            .downcast_mut::<Vec<Box<dyn Any>>>()
             .expect("failed to downcast to event list"),
         None => return,
     }
-    .iter()
+    .iter_mut()
     {
-        match listener.invoke_event(
-            &event
-                .event
-                .downcast_ref::<E>()
-                .expect("failed to downcast to concrete event"),
-        ) {
+        match listener
+            .downcast_mut::<Box<dyn EventListener<E>>>()
+            .expect("failed to downcast to event listener")
+            .invoke_event(
+                &event
+                    .event
+                    .downcast_ref::<E>()
+                    .expect("failed to downcast to concrete event"),
+            ) {
             EventEvaluateState::Handled => {
                 crate::core::logging::engine::trace!("event handled");
                 break;
@@ -165,8 +173,9 @@ fn execute<'a, E: EventMarker + 'static>(
 }
 
 pub trait EventListener<T: EventMarker + 'static> {
-    fn invoke_event(&self, event: &T) -> EventEvaluateState;
+    fn invoke_event(&mut self, event: &T) -> EventEvaluateState;
 }
+struct ConcreteEventListener<T: EventMarker + 'static>(Box<dyn EventListener<T>>);
 
 pub fn listener_from_func<F, T>(f: F) -> Box<dyn EventListener<T>>
 where
@@ -192,19 +201,24 @@ where
     F: Fn(&T) -> EventEvaluateState + 'static,
     T: EventMarker + 'static,
 {
-    fn invoke_event(&self, event: &T) -> EventEvaluateState {
+    fn invoke_event(&mut self, event: &T) -> EventEvaluateState {
         (self.f)(event)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::{cell::RefCell, rc::Rc};
+
     use super::*;
 
-    struct Listener;
+    struct Listener {
+        times_called: Rc<RefCell<u32>>,
+    }
     impl EventListener<event::AppUpdate> for Listener {
-        fn invoke_event(&self, _event: &event::AppUpdate) -> EventEvaluateState {
-            panic!("event invoked");
+        fn invoke_event(&mut self, _event: &event::AppUpdate) -> EventEvaluateState {
+            *self.times_called.borrow_mut() += 1;
+            EventEvaluateState::Handled
         }
     }
 
@@ -214,28 +228,47 @@ mod tests {
             TypeId::of::<event::AppUpdate>(),
             TypeId::of::<dyn event::EventMarker>()
         );
+        assert_ne!(
+            TypeId::of::<event::AppUpdate>(),
+            TypeId::of::<event::AppRender>()
+        )
     }
     #[test]
-    #[should_panic]
     fn event_system_test() {
         let mut event_system = EventSystem::new();
 
-        let listener = Listener;
+        let number = Rc::new(RefCell::new(0));
+
+        let listener = Listener {
+            times_called: number.clone(),
+        };
 
         event_system.add_listener(Box::new(listener));
 
         event_system.queue_event::<event::AppUpdate>(EventInfo::queued(event::AppUpdate));
         event_system.update();
+
+        assert_eq!(*number.borrow(), 1);
+
+        event_system.queue_event::<event::AppUpdate>(EventInfo::queued(event::AppUpdate));
+        event_system.update();
+
+        assert_eq!(*number.borrow(), 2);
     }
     #[test]
-    #[should_panic]
     fn event_immediate_test() {
         let mut event_system = EventSystem::new();
 
-        let listener = Listener;
+        let number = Rc::new(RefCell::new(0));
+
+        let listener = Listener {
+            times_called: number.clone(),
+        };
 
         event_system.add_listener(Box::new(listener));
 
         event_system.queue_event::<event::AppUpdate>(EventInfo::blocking(event::AppUpdate));
+
+        assert_eq!(*number.borrow(), 1);
     }
 }
