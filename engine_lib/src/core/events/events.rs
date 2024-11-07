@@ -89,7 +89,7 @@ pub struct EventSystem {
     queue: Vec<Box<dyn FnOnce(&mut HashMap<TypeId, Box<dyn Any>>) -> ()>>,
 
     /// Real type of Any: `Vec<Box<EventListener<EventMarker>>>`
-    /// 'listeners: HashMap<TypeId, Box<Vec<Box<ConcreteEventListener<EventMarker>>>>>`
+    /// 'listeners: HashMap<TypeId, Box<Vec<ConcreteEventListener<EventMarker>>>>`
     listeners: HashMap<TypeId, Box<dyn Any>>,
 }
 
@@ -119,13 +119,14 @@ impl EventSystem {
         let event_type_id = TypeId::of::<T>();
         match self.listeners.get_mut(&event_type_id) {
             Some(v) => v
-                .downcast_mut::<Vec<Box<E>>>()
+                .downcast_mut::<Vec<ConcreteEventListener<T>>>()
                 .expect("failed to downcast to listener list")
-                .push(listener),
+                .push(ConcreteEventListener(listener)),
             None => {
-                _ = self
-                    .listeners
-                    .insert(event_type_id, Box::new(vec![listener]))
+                _ = self.listeners.insert(
+                    event_type_id,
+                    Box::new(vec![ConcreteEventListener(listener)]),
+                )
             }
         }
         self
@@ -148,21 +149,18 @@ fn execute<'a, E: EventMarker + 'static>(
 ) {
     for listener in match listeners.get_mut(&TypeId::of::<E>()) {
         Some(i) => i
-            .downcast_mut::<Vec<Box<dyn Any>>>()
+            .downcast_mut::<Vec<ConcreteEventListener<E>>>()
             .expect("failed to downcast to event list"),
         None => return,
     }
     .iter_mut()
     {
-        match listener
-            .downcast_mut::<Box<dyn EventListener<E>>>()
-            .expect("failed to downcast to event listener")
-            .invoke_event(
-                &event
-                    .event
-                    .downcast_ref::<E>()
-                    .expect("failed to downcast to concrete event"),
-            ) {
+        match listener.0.invoke_event(
+            &event
+                .event
+                .downcast_ref::<E>()
+                .expect("failed to downcast to concrete event"),
+        ) {
             EventEvaluateState::Handled => {
                 crate::core::logging::engine::trace!("event handled");
                 break;

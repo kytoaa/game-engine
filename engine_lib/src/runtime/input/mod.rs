@@ -22,7 +22,7 @@ struct Binding {
     action: keyboard::KeyState,
 }
 pub enum InputEvent {
-    Callback(Box<dyn FnMut(CallbackKeyState) -> ()>),
+    //Callback(Box<dyn FnMut(CallbackKeyState) -> ()>),
     None,
 }
 
@@ -82,25 +82,6 @@ impl Layer for Arc<InputSystem> {
 impl EventListener<event::KeyboardEvent> for Arc<InputSystem> {
     fn invoke_event(&mut self, event: &event::KeyboardEvent) -> EventEvaluateState {
         let event::KeyboardEvent(keycode, keystate) = event;
-
-        /*let bindings = self.actions.iter_mut().filter(|a| {
-            a.bindings
-                .iter_mut()
-                .filter(|b| b.key == *keycode && b.action == *keystate)
-                .count()
-                > 0
-        });
-
-        for binding in bindings {
-            if let InputEvent::Callback(callback) = &binding.event {
-                (callback)(
-                    self.listening_for
-                        .get(keycode)
-                        .expect("unregistered key")
-                        .clone(),
-                );
-            }
-        }*/
 
         EventEvaluateState::Unhandled
     }
