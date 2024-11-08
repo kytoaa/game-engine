@@ -13,6 +13,7 @@ pub mod runtime;
 
 use core::events::EventSystem;
 use core::initialization::{AppBuilder, WindowData};
+use std::sync::{Arc, Mutex};
 
 pub struct App {
     window: Option<window::Window>,
@@ -20,6 +21,7 @@ pub struct App {
     pub event_system: core::events::EventSystem,
     frame_num: u64,
     layers: Vec<Box<dyn core::layers::Layer>>,
+    input: Option<Arc<Mutex<runtime::input::InputSystem>>>,
 }
 
 fn init() {
@@ -36,6 +38,7 @@ impl App {
             event_system: EventSystem::new(),
             frame_num: 0,
             layers: vec![],
+            input: None,
         }
     }
     pub fn begin_build() -> AppBuilder {

@@ -1,5 +1,5 @@
 pub trait InitializeHook {
-    fn init(&self) -> Result<(), ()>;
+    fn init(&self, app: &mut crate::App) -> Result<(), ()>;
 }
 
 pub struct AppBuilder {
@@ -21,7 +21,7 @@ impl AppBuilder {
     }
     pub fn add_init_func<F>(self, f: F) -> Self
     where
-        F: Fn() -> Result<(), ()> + 'static,
+        F: Fn(&mut crate::App) -> Result<(), ()> + 'static,
     {
         self.add_init_hook(Box::new(FnInitHook(f)))
     }
@@ -33,7 +33,7 @@ impl AppBuilder {
         let mut app = crate::App::new(WindowData::default());
 
         for hook in self.init_hooks {
-            hook.init()?;
+            hook.init(&mut app)?;
         }
         for layer in self.layers {
             app.add_layer(layer);
@@ -45,14 +45,14 @@ impl AppBuilder {
 
 struct FnInitHook<F>(F)
 where
-    F: Fn() -> Result<(), ()> + 'static;
+    F: Fn(&mut crate::App) -> Result<(), ()> + 'static;
 
 impl<F> InitializeHook for FnInitHook<F>
 where
-    F: Fn() -> Result<(), ()> + 'static,
+    F: Fn(&mut crate::App) -> Result<(), ()> + 'static,
 {
-    fn init(&self) -> Result<(), ()> {
-        self.0()
+    fn init(&self, app: &mut crate::App) -> Result<(), ()> {
+        self.0(app)
     }
 }
 
@@ -66,6 +66,20 @@ impl Default for WindowData {
         WindowData {
             title: "window",
             size: (1280, 720),
+        }
+    }
+}
+
+pub mod initializers {
+    use super::*;
+    impl AppBuilder {
+        pub fn with_input_system(self) -> Self {
+            self.add_init_func(|app| {
+                let input_system = crate::runtime::input::InputSystem::new();
+                app.add_layer(Box::new(input_system.clone()));
+                app.input = Some(input_system);
+                Ok(())
+            })
         }
     }
 }
