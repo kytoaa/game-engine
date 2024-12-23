@@ -3,7 +3,7 @@ use engine_lib;
 fn main() {
     let mut app = engine_lib::App::begin_build()
         .with_input_system()
-        .add_init_func(|_| {
+        .add_init_hook(|_| {
             engine_lib::debug!("initializing");
             Ok(())
         })
@@ -21,7 +21,7 @@ fn main() {
 struct ECSLayer;
 
 impl engine_lib::core::layers::Layer for ECSLayer {
-    fn init(&mut self, app: &mut engine_lib::App) {}
+    fn init(&mut self, _app: &mut engine_lib::App) {}
     fn update(&mut self) {}
     fn close(&mut self) {}
 }

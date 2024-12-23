@@ -5,24 +5,32 @@ use std::marker::PhantomData;
 use super::keyboard::{KeyState, Keycode};
 use super::mouse::MouseButton;
 
-pub struct EventInfo {
-    pub event: Box<dyn Any>,
+pub struct EventInfo<T>
+where
+    T: EventMarker + 'static,
+{
+    event: Box<T>,
     priority: EventPriority,
 }
-impl EventInfo {
-    pub fn queued<T: EventMarker + 'static>(event: T) -> EventInfo {
+impl<T: EventMarker + 'static> EventInfo<T> {
+    pub fn queued(event: T) -> Self {
         EventInfo {
             event: Box::new(event),
             priority: EventPriority::Queued,
         }
     }
-    pub fn blocking<T: EventMarker + 'static>(event: T) -> EventInfo {
+    pub fn blocking(event: T) -> Self {
         EventInfo {
             event: Box::new(event),
             priority: EventPriority::Blocking,
         }
     }
 }
+/*impl<T: EventMarker + 'static> Into<DynEventInfo> for EventInfo<T> {
+    fn into(self) -> DynEventInfo {
+        DynEventInfo { event: self.event }
+    }
+}*/
 pub enum EventEvaluateState {
     Handled,
     Unhandled,
@@ -103,12 +111,13 @@ impl EventSystem {
     }
 }
 impl EventSystem {
-    pub fn queue_event<T: EventMarker>(&mut self, event: EventInfo) {
+    pub fn queue_event<T: EventMarker>(&mut self, event: EventInfo<T>) {
         match event.priority.clone() {
-            EventPriority::Queued => self
-                .queue
-                .insert(0, Box::new(move |listeners| execute::<T>(listeners, event))),
-            EventPriority::Blocking => self.execute::<T>(event),
+            EventPriority::Queued => self.queue.insert(
+                0,
+                Box::new(move |listeners| execute::<T>(listeners, event.into())),
+            ),
+            EventPriority::Blocking => self.execute::<T>(event.into()),
         }
     }
     pub fn add_listener<T, E>(&mut self, listener: Box<E>) -> &mut Self
@@ -133,7 +142,7 @@ impl EventSystem {
     }
 
     /// execute a specific event immediately
-    pub fn execute<E: EventMarker + 'static>(&mut self, event: EventInfo) {
+    pub fn execute<E: EventMarker + 'static>(&mut self, event: EventInfo<E>) {
         execute::<E>(&mut self.listeners, event);
     }
     pub fn update(&mut self) {
@@ -145,7 +154,7 @@ impl EventSystem {
 
 fn execute<'a, E: EventMarker + 'static>(
     listeners: &'a mut HashMap<TypeId, Box<dyn Any>>,
-    event: EventInfo,
+    event: EventInfo<E>,
 ) {
     for listener in match listeners.get_mut(&TypeId::of::<E>()) {
         Some(i) => i
@@ -155,12 +164,7 @@ fn execute<'a, E: EventMarker + 'static>(
     }
     .iter_mut()
     {
-        match listener.0.invoke_event(
-            &event
-                .event
-                .downcast_ref::<E>()
-                .expect("failed to downcast to concrete event"),
-        ) {
+        match listener.0.invoke_event(&event.event) {
             EventEvaluateState::Handled => {
                 crate::core::logging::engine::trace!("event handled");
                 break;
@@ -175,15 +179,15 @@ pub trait EventListener<T: EventMarker + 'static> {
 }
 struct ConcreteEventListener<T: EventMarker + 'static>(Box<dyn EventListener<T>>);
 
-pub fn listener_from_func<F, T>(f: F) -> Box<dyn EventListener<T>>
+pub fn listener_from_func<F, T>(f: F) -> impl EventListener<T>
 where
     F: Fn(&T) -> EventEvaluateState + 'static,
     T: EventMarker + 'static,
 {
-    Box::new(FuncEventListener {
+    FuncEventListener {
         f,
         phantom: PhantomData,
-    })
+    }
 }
 
 struct FuncEventListener<F, T: EventMarker>
@@ -243,12 +247,12 @@ mod tests {
 
         event_system.add_listener(Box::new(listener));
 
-        event_system.queue_event::<event::AppUpdate>(EventInfo::queued(event::AppUpdate));
+        event_system.queue_event(EventInfo::queued(event::AppUpdate));
         event_system.update();
 
         assert_eq!(*number.borrow(), 1);
 
-        event_system.queue_event::<event::AppUpdate>(EventInfo::queued(event::AppUpdate));
+        event_system.queue_event(EventInfo::queued(event::AppUpdate));
         event_system.update();
 
         assert_eq!(*number.borrow(), 2);

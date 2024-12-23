@@ -1,3 +1,4 @@
+use renderer::Renderer;
 use winit;
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, WindowEvent};
@@ -22,6 +23,7 @@ pub struct App {
     frame_num: u64,
     layers: Vec<Box<dyn core::layers::Layer>>,
     input: Option<Arc<Mutex<runtime::input::InputSystem>>>,
+    renderer: Option<renderer::Renderer>,
 }
 
 fn init() {
@@ -39,6 +41,7 @@ impl App {
             frame_num: 0,
             layers: vec![],
             input: None,
+            renderer: None,
         }
     }
     pub fn begin_build() -> AppBuilder {
@@ -59,7 +62,8 @@ impl ApplicationHandler for App {
                         })),
                 )
                 .expect("failed to create window"),
-        )
+        );
+        self.renderer = Some(renderer::Renderer::init(self.window.as_ref().unwrap()));
     }
     fn device_event(
         &mut self,
@@ -219,4 +223,8 @@ impl App {
         self.layers.push(layer);
         self
     }
+}
+
+impl Drop for App {
+    fn drop(&mut self) {}
 }
