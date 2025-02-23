@@ -1,6 +1,4 @@
-//mod basic_renderer;
-mod projection;
+mod init;
 mod renderer;
-mod vulkan;
 
 pub use renderer::*;

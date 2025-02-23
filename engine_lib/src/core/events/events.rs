@@ -9,67 +9,62 @@ pub struct EventInfo<T>
 where
     T: EventMarker + 'static,
 {
-    event: Box<T>,
+    event: T,
     priority: EventPriority,
 }
 impl<T: EventMarker + 'static> EventInfo<T> {
-    pub fn queued(event: T) -> Self {
+    pub const fn queued(event: T) -> Self {
         EventInfo {
-            event: Box::new(event),
+            event,
             priority: EventPriority::Queued,
         }
     }
-    pub fn blocking(event: T) -> Self {
+    pub const fn blocking(event: T) -> Self {
         EventInfo {
-            event: Box::new(event),
+            event,
             priority: EventPriority::Blocking,
         }
     }
 }
-/*impl<T: EventMarker + 'static> Into<DynEventInfo> for EventInfo<T> {
-    fn into(self) -> DynEventInfo {
-        DynEventInfo { event: self.event }
-    }
-}*/
 pub enum EventEvaluateState {
     Handled,
     Unhandled,
 }
 
 pub mod event {
+    #![allow(unused_variables)]
     use super::*;
 
     pub trait EventMarker: Any {}
 
     #[derive(Debug)]
-    #[allow(unused_variables)]
     pub struct KeyboardEvent(pub Keycode, pub KeyState);
+
     #[derive(Debug)]
-    #[allow(unused_variables)]
     pub struct MouseEvent(pub MouseButton, pub KeyState);
+
     #[derive(Debug)]
-    #[allow(unused_variables)]
     pub struct MouseMotion(pub (f32, f32));
+
     #[derive(Debug)]
-    #[allow(unused_variables)]
     pub struct MouseScroll(pub f32);
+
     #[derive(Debug)]
-    #[allow(unused_variables)]
     pub struct AppUpdate;
+
     #[derive(Debug)]
-    #[allow(unused_variables)]
     pub struct AppRender;
+
     #[derive(Debug)]
-    #[allow(unused_variables)]
     pub struct WindowFocus;
+
     #[derive(Debug)]
-    #[allow(unused_variables)]
     pub struct WindowLoseFocus;
+
     #[derive(Debug)]
-    #[allow(unused_variables)]
     pub struct WindowResize(pub (u32, u32));
+
     #[derive(Debug)]
-    #[allow(unused_variables)]
     pub struct WindowClose;
 
     impl EventMarker for KeyboardEvent {}
@@ -97,7 +92,7 @@ pub struct EventSystem {
     queue: Vec<Box<dyn FnOnce(&mut HashMap<TypeId, Box<dyn Any>>) -> ()>>,
 
     /// Real type of Any: `Vec<Box<EventListener<EventMarker>>>`
-    /// 'listeners: HashMap<TypeId, Box<Vec<ConcreteEventListener<EventMarker>>>>`
+    /// `listeners: HashMap<TypeId, Box<Vec<ConcreteEventListener<EventMarker>>>>`
     listeners: HashMap<TypeId, Box<dyn Any>>,
 }
 
@@ -179,7 +174,7 @@ pub trait EventListener<T: EventMarker + 'static> {
 }
 struct ConcreteEventListener<T: EventMarker + 'static>(Box<dyn EventListener<T>>);
 
-pub fn listener_from_func<F, T>(f: F) -> impl EventListener<T>
+pub const fn listener_from_func<F, T>(f: F) -> impl EventListener<T>
 where
     F: Fn(&T) -> EventEvaluateState + 'static,
     T: EventMarker + 'static,

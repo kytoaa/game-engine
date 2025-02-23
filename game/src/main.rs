@@ -7,6 +7,10 @@ fn main() {
             engine_lib::debug!("initializing");
             Ok(())
         })
+        .add_init_hook(|app| {
+            app.event_system.add_listener(Box::new(EventListener));
+            Ok(())
+        })
         .build()
         .unwrap();
     app.add_layer(Box::new(ECSLayer));
@@ -26,14 +30,15 @@ impl engine_lib::core::layers::Layer for ECSLayer {
     fn close(&mut self) {}
 }
 
-#[cfg(test)]
-mod tests {
-    use std::any::Any;
-    #[test]
-    fn type_identifier() {
-        let a = (25, true);
-        let b = (240, true, 1.0);
-
-        assert_ne!(a.type_id(), b.type_id());
+struct EventListener;
+impl engine_lib::core::events::EventListener<engine_lib::core::events::event::MouseMotion>
+    for EventListener
+{
+    fn invoke_event(
+        &mut self,
+        event: &engine_lib::core::events::event::MouseMotion,
+    ) -> engine_lib::core::events::EventEvaluateState {
+        engine_lib::trace!("mouse motion event: {:?}", event);
+        engine_lib::core::events::EventEvaluateState::Handled
     }
 }

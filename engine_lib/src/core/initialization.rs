@@ -58,7 +58,7 @@ pub mod initializers {
     impl AppBuilder {
         pub fn with_input_system(self) -> Self {
             self.add_init_hook(|app| {
-                let input_system = crate::runtime::input::InputSystem::new();
+                let input_system = crate::runtime::input::InputSystem::build();
                 app.add_layer(Box::new(input_system.clone()));
                 app.input = Some(input_system);
                 Ok(())

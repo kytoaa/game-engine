@@ -1,100 +1,58 @@
-use super::vulkan;
-use ash::{vk, Entry};
-use winit::raw_window_handle::{HasDisplayHandle, HasWindowHandle, RawWindowHandle};
+use std::sync::Arc;
 
-//#[derive(BufferContents, Vertex)]
-#[repr(C)]
-pub struct RenderVert {
-    //#[format(R32G32_SFLOAT)]
-    position: [f32; 2],
-}
-impl RenderVert {
-    pub fn new(position: [f32; 2]) -> RenderVert {
-        RenderVert { position }
-    }
-}
-
-pub struct ShaderHandle;
-pub struct ShaderParam;
-
-pub struct Material {
-    shader: ShaderHandle,
-    params: Vec<ShaderParam>,
-}
-
-pub trait VertexBuffer: Iterator<Item = RenderVert> {}
+use ash::{
+    ext::debug_utils,
+    khr::{surface, swapchain},
+    vk, Device, Entry, Instance,
+};
+use winit::raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 pub struct Renderer {
-    instance: ash::Instance,
-    device: ash::Device,
-    graphics_queue: ash::vk::Queue,
+    pub entry: Entry,
+    pub instance: Instance,
+    pub device: Device,
+    pub surface_loader: surface::Instance,
+    pub swapchain_loader: swapchain::Device,
+    pub debug_utils_loader: debug_utils::Instance,
+    pub window: Arc<winit::window::Window>,
+    pub debug_call_back: vk::DebugUtilsMessengerEXT,
+
+    pub pdevice: vk::PhysicalDevice,
+    pub device_memory_properties: vk::PhysicalDeviceMemoryProperties,
+    pub queue_family_index: u32,
+    pub present_queue: vk::Queue,
+
+    pub surface: vk::SurfaceKHR,
+    pub surface_format: vk::SurfaceFormatKHR,
+    pub surface_resolution: vk::Extent2D,
+
+    pub swapchain: vk::SwapchainKHR,
+    pub present_images: Vec<vk::Image>,
+    pub present_image_views: Vec<vk::ImageView>,
+
+    pub pool: vk::CommandPool,
+    pub draw_command_buffer: vk::CommandBuffer,
+    pub setup_command_buffer: vk::CommandBuffer,
+
+    pub depth_image: vk::Image,
+    pub depth_image_view: vk::ImageView,
+    pub depth_image_memory: vk::DeviceMemory,
+
+    pub present_complete_semaphore: vk::Semaphore,
+    pub rendering_complete_semaphore: vk::Semaphore,
+
+    pub draw_commands_reuse_fence: vk::Fence,
+    pub setup_commands_reuse_fence: vk::Fence,
+    //pub in_flight_fences: Vec<vk::Fence>,
 }
 
 impl Renderer {
-    pub fn init(window: &winit::window::Window) -> Renderer {
-        let display_handle = window.display_handle().unwrap();
-        let entry = unsafe { Entry::load() }.expect("could not load vulkan library/DLL");
-
-        if vulkan::validation_layers::ENABLE_VALIDATION_LAYERS
-            && !vulkan::validation_layers::check_validation_layer_support(&entry)
-        {
-            panic!("validation layers not available");
-        }
-
-        let extensions = vulkan::extension_layers::get_required_extensions(&display_handle);
-
-        let app_info = vk::ApplicationInfo {
-            api_version: vk::make_api_version(0, 1, 0, 0),
-            ..Default::default()
-        };
-        let create_info = {
-            let mut create_info = vk::InstanceCreateInfo {
-                p_application_info: &app_info,
-                enabled_extension_count: extensions.len() as u32,
-                pp_enabled_extension_names: extensions.first().unwrap(),
-                ..Default::default()
-            };
-            if vulkan::validation_layers::ENABLE_VALIDATION_LAYERS {
-                let validation_layers = vulkan::validation_layers::get_validation_layers();
-
-                create_info.enabled_layer_count = validation_layers.0 as u32;
-                create_info.pp_enabled_layer_names = validation_layers.1;
-            }
-            create_info
-        };
-
-        let instance = unsafe { entry.create_instance(&create_info, None) }
-            .expect("failed to create vulkan instance");
-
-        let device = vulkan::devices::get_physical_device(&instance);
-
-        let indices = vulkan::devices::find_queue_families(&instance, &device);
-
-        let device = vulkan::devices::create_logical_device(&instance, &device, &indices);
-        let graphics_queue =
-            unsafe { device.get_device_queue(indices.graphics_family.unwrap(), 0) };
-
-        let hwnd = match window.window_handle().unwrap().as_raw() {
-            RawWindowHandle::Win32(handle) => handle.hwnd.get(),
-            _ => panic!("not running on windows :D"),
-        };
-        let create_info = ash::vk::Win32SurfaceCreateInfoKHR {
-            s_type: ash::vk::StructureType::WIN32_SURFACE_CREATE_INFO_KHR,
-            hwnd,
-            hinstance: todo!(),
-            ..Default::default()
-        };
-
-        todo!()
+    pub fn render(&mut self, frame: usize) {
+        self.draw_frame(frame);
     }
-}
-
-impl Renderer {
-    pub fn submit<T: VertexBuffer>(&self, buffer: T, material: Material) {}
-
-    pub fn render(&self) {}
-}
-
-impl Drop for Renderer {
-    fn drop(&mut self) {}
+    fn draw_frame(&mut self, frame: usize) {
+        let frame = frame % self.present_image_views.len();
+        println!("{} max frames in flight", self.present_image_views.len());
+        //self.device.wait_for_fences(self.in_flight_fences[frame])
+    }
 }

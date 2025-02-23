@@ -9,5 +9,5 @@ image = "0.25.2"
 log = "0.4.22"
 winit = "0.30.5"
 flecs_ecs = "0.1.1"
-ash = { version = "0.38.0" }
+ash = { version = "0.38.0", features = ["linked"] }
 ash-window = "0.13.0"

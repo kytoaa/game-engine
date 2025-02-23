@@ -2,6 +2,7 @@ use std::ops;
 
 /// represents a generic matrix
 /// I is rows, J is columns
+#[derive(Clone)]
 pub struct Matrix<const I: usize, const J: usize> {
     pub values: [[f32; J]; I],
 }
@@ -10,16 +11,6 @@ impl<const I: usize, const J: usize> Matrix<I, J> {
     pub const fn new(values: [[f32; J]; I]) -> Self {
         Self { values }
     }
-    /*pub fn identity() -> Option<Self> {
-        if I != J {
-            return None;
-        }
-        let mut matrix = Self::new([[0.0; J]; I]);
-        for i in 0..I {
-            let _ = matrix.set((i, i), 1.0);
-        }
-        return Some(matrix);
-    }*/
 }
 impl<const I: usize> Matrix<I, I> {
     pub fn identity() -> Self {
@@ -32,13 +23,13 @@ impl<const I: usize> Matrix<I, I> {
 }
 
 impl<const I: usize, const J: usize> Matrix<I, J> {
-    pub fn get_size(&self) -> (usize, usize) {
+    pub const fn get_size(&self) -> (usize, usize) {
         (I, J)
     }
     pub fn get(&self, ij: (usize, usize)) -> Option<f32> {
         self.values.get(ij.0)?.get(ij.1).copied()
     }
-    pub fn set(&mut self, ij: (usize, usize), value: f32) -> Result<(), ()> {
+    pub const fn set(&mut self, ij: (usize, usize), value: f32) -> Result<(), ()> {
         if ij.0 >= I || ij.1 >= J {
             return Err(());
         }
@@ -69,14 +60,6 @@ impl<const I: usize, const J: usize> Matrix<I, J> {
         }
 
         return self;
-    }
-}
-
-impl<const I: usize, const J: usize> Clone for Matrix<I, J> {
-    fn clone(&self) -> Self {
-        Matrix {
-            values: self.values.clone(),
-        }
     }
 }
 
@@ -118,6 +101,12 @@ impl<const I: usize, const J: usize> ops::Mul<f32> for Matrix<I, J> {
 
     fn mul(self, rhs: f32) -> Self::Output {
         self.scalar_multiply(rhs)
+    }
+}
+
+impl<const I: usize, const J: usize> From<[[f32; J]; I]> for Matrix<I, J> {
+    fn from(value: [[f32; J]; I]) -> Self {
+        Self::new(value)
     }
 }
 

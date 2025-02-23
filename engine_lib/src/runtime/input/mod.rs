@@ -33,7 +33,7 @@ pub trait InputSystemMarker {
 }
 
 impl InputSystem {
-    pub fn new() -> Arc<Mutex<InputSystem>> {
+    pub fn build() -> Arc<Mutex<InputSystem>> {
         Arc::new(Mutex::new(InputSystem {
             actions: vec![],
             names: vec![],
@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn input_system_test() {
-        let mut input = InputSystem::new();
+        let mut input = InputSystem::build();
         let clone = input.clone();
 
         let mut input_system = clone.lock().expect("failed to aquire mutex lock");
@@ -170,7 +170,7 @@ mod tests {
     }
     #[test]
     fn input_system_priority_test() {
-        let mut input = InputSystem::new();
+        let mut input = InputSystem::build();
         let mut clone = input.clone();
 
         let action = clone.register("test");

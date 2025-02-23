@@ -17,7 +17,7 @@ use core::initialization::{AppBuilder, WindowData};
 use std::sync::{Arc, Mutex};
 
 pub struct App {
-    window: Option<window::Window>,
+    window: Option<Arc<window::Window>>,
     window_data: WindowData,
     pub event_system: core::events::EventSystem,
     frame_num: u64,
@@ -61,9 +61,13 @@ impl ApplicationHandler for App {
                             height: self.window_data.size.1,
                         })),
                 )
-                .expect("failed to create window"),
+                .expect("failed to create window")
+                .into(),
         );
-        self.renderer = Some(renderer::Renderer::init(self.window.as_ref().unwrap()));
+        self.renderer = Some(
+            renderer::Renderer::init(self.window.as_ref().unwrap().clone())
+                .expect("failed to init renderer"),
+        );
     }
     fn device_event(
         &mut self,
@@ -181,11 +185,21 @@ impl ApplicationHandler for App {
             },
             WindowEvent::CloseRequested => {
                 self.event_system
-                    .queue_event::<core::events::event::WindowClose>(
-                        core::events::EventInfo::blocking(core::events::event::WindowClose),
-                    );
+                    .queue_event(core::events::EventInfo::blocking(
+                        core::events::event::WindowClose,
+                    ));
                 self.close();
                 event_loop.exit();
+            }
+            WindowEvent::RedrawRequested => {
+                self.event_system
+                    .queue_event(core::events::EventInfo::blocking(
+                        core::events::event::AppRender,
+                    ));
+                self.renderer
+                    .as_mut()
+                    .unwrap()
+                    .render(self.frame_num as usize);
             }
             _ => (),
         }
